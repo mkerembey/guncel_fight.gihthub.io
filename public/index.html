@@ -282,6 +282,7 @@
         let timer = null;
         let timeLeft = 30;
         let roundInProgress = false;
+        let lastUsedCard = null;
 
         function updateTimer() {
             if (timeLeft > 0) {
@@ -338,10 +339,24 @@
             roundInProgress = false;
             document.getElementById('playerCard').textContent = 'Henüz kart seçilmedi';
             document.getElementById('opponentCard').textContent = 'Henüz kart seçilmedi';
+            
             const cards = document.querySelectorAll('.card');
+            
+            // Kullanılmamış kart sayısını hesapla
+            const remainingCards = Array.from(cards).filter(card => !card.classList.contains('used')).length;
+            
             cards.forEach(card => {
+                const cardNumber = parseInt(card.textContent);
                 if (!card.classList.contains('used')) {
                     card.classList.remove('disabled', 'card-selected');
+                    
+                    // Eğer son 1 veya 2 kart kaldıysa, komşuluk kuralını uygulama
+                    if (remainingCards > 2 && lastUsedCard !== null) {
+                        if (cardNumber === lastUsedCard + 1 || cardNumber === lastUsedCard - 1) {
+                            card.classList.add('disabled');
+                            card.title = 'Bu kart geçici olarak kullanılamaz';
+                        }
+                    }
                 }
             });
             startTimer();
@@ -376,7 +391,8 @@
             document.getElementById('opponentScore').textContent = data.opponentScore;
             document.getElementById('opponentCard').textContent = `Seçilen kart: ${data.opponentCard}`;
 
-            // Kullanılan kartı işaretle
+            lastUsedCard = data.myCard;
+
             const cards = document.querySelectorAll('.card');
             cards.forEach(card => {
                 if (parseInt(card.textContent) === data.myCard) {
@@ -395,7 +411,6 @@
             }
             document.getElementById('gameMessage').textContent = resultMessage;
 
-            // Yeni raunda geçiş için hazırlık
             setTimeout(() => {
                 resetRound();
             }, 2000);
@@ -420,7 +435,6 @@
             }
             document.getElementById('gameMessage').textContent = message;
             
-            // 5 saniye sonra yeni oyun için sayfayı yenile
             setTimeout(() => {
                 location.reload();
             }, 5000);
