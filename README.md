@@ -36,4 +36,4 @@ npm start
 
 ## Lisans
 
-MIT 
+MIT # guncel_fight.gihthub.io
