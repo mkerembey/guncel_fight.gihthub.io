@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İki Kişilik Kart Oyunu</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px;
+            gap: 30px;
+        }
+        
+        .player-section {
+            text-align: center;
+            padding: 30px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            transition: transform 0.3s ease;
+        }
+
+        .player-section:hover {
+            transform: translateY(-5px);
+        }
+
+        .cards {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            width: 60px;
+            height: 90px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: white;
+            color: #1a1a2e;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover:not(.disabled) {
+            transform: translateY(-10px) rotate(5deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+
+        .card.disabled {
+            background: rgba(255, 255, 255, 0.3);
+            cursor: not-allowed;
+            transform: scale(0.95);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+
+        .card:hover::before:not(.disabled) {
+            transform: translateX(100%);
+        }
+
+        .timer {
+            font-size: 32px;
+            margin: 20px 0;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .round-info {
+            font-size: 24px;
+            margin: 20px 0;
+        }
+
+        .selected-card {
+            margin-top: 20px;
+            font-size: 20px;
+            color: #90EE90;
+        }
+
+        .game-status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        #roundResult {
+            font-size: 24px;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .score {
+            font-size: 24px;
+            color: #90EE90;
+            margin: 10px 0;
+        }
+
+        .selected {
+            animation: selectCard 0.5s ease;
+        }
+
+        @keyframes selectCard {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-status">
+        <h2>Raund: <span id="currentRound">1</span>/7</h2>
+        <div class="timer">Kalan Süre: <span id="timeLeft">30</span></div>
+        <div id="roundResult"></div>
+    </div>
+
+    <div class="game-container">
+        <div class="player-section">
+            <h2>Oyuncu 1</h2>
+            <div>Puan: <span id="player1Score">0</span></div>
+            <div class="cards" id="player1Cards"></div>
+            <div class="selected-card">Seçilen Kart: <span id="player1Selected">-</span></div>
+        </div>
+
+        <div class="player-section">
+            <h2>Oyuncu 2</h2>
+            <div>Puan: <span id="player2Score">0</span></div>
+            <div class="cards" id="player2Cards"></div>
+            <div class="selected-card">Seçilen Kart: <span id="player2Selected">-</span></div>
+        </div>
+    </div>
+
+    <script>
+        let currentRound = 1;
+        let timer = 30;
+        let timerInterval;
+        let player1Score = 0;
+        let player2Score = 0;
+        let player1Cards = [1, 2, 3, 4, 5, 6, 7];
+        let player2Cards = [1, 2, 3, 4, 5, 6, 7];
+        let player1LastCard = null;
+        let player2LastCard = null;
+        let player1CurrentSelection = null;
+        let player2CurrentSelection = null;
+
+        // Ses efektleri için
+        const cardSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-game-ball-tap-2073.wav');
+        const winSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.wav');
+        const loseSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-retro-arcade-lose-2027.wav');
+
+        function createCards() {
+            const player1CardsDiv = document.getElementById('player1Cards');
+            const player2CardsDiv = document.getElementById('player2Cards');
+            
+            player1CardsDiv.innerHTML = '';
+            player2CardsDiv.innerHTML = '';
+
+            player1Cards.forEach(num => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.textContent = num;
+                card.onclick = () => selectCard(1, num, card);
+                
+                if (!isCardPlayable(1, num)) {
+                    card.className = 'card disabled';
+                }
+                
+                player1CardsDiv.appendChild(card);
+            });
+
+            player2Cards.forEach(num => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.textContent = num;
+                card.onclick = () => selectCard(2, num, card);
+                
+                if (!isCardPlayable(2, num)) {
+                    card.className = 'card disabled';
+                }
+                
+                player2CardsDiv.appendChild(card);
+            });
+        }
+
+        function isCardPlayable(player, cardNum) {
+            const lastCard = player === 1 ? player1LastCard : player2LastCard;
+            if (lastCard === null) return true;
+            
+            // Kart daha önce kullanılmış mı kontrol et
+            const availableCards = player === 1 ? player1Cards : player2Cards;
+            if (!availableCards.includes(cardNum)) return false;
+            
+            // Bir önceki kartın bir fazlası veya bir eksiği mi kontrol et
+            if (cardNum === lastCard + 1 || cardNum === lastCard - 1) return false;
+            
+            return true;
+        }
+
+        function selectCard(player, num, cardElement) {
+            if (!isCardPlayable(player, num)) return;
+            
+            // Ses efekti
+            cardSound.currentTime = 0;
+            cardSound.play();
+            
+            // Animasyon sınıfını ekle
+            cardElement.classList.add('selected');
+            
+            if (player === 1) {
+                player1CurrentSelection = num;
+                document.getElementById('player1Selected').textContent = num;
+            } else {
+                player2CurrentSelection = num;
+                document.getElementById('player2Selected').textContent = num;
+            }
+
+            cardElement.style.backgroundColor = '#90EE90';
+            
+            // Animasyon sınıfını kaldır
+            setTimeout(() => {
+                cardElement.classList.remove('selected');
+            }, 500);
+
+            // Her iki oyuncu da kart seçtiyse raundu bitir
+            if (player1CurrentSelection !== null && player2CurrentSelection !== null) {
+                clearInterval(timerInterval);
+                setTimeout(endRound, 500); // Kart seçme animasyonunun bitmesini bekle
+            }
+        }
+
+        function startRound() {
+            timer = 30;
+            document.getElementById('timeLeft').textContent = timer;
+            document.getElementById('currentRound').textContent = currentRound;
+            document.getElementById('roundResult').textContent = '';
+            player1CurrentSelection = null;
+            player2CurrentSelection = null;
+            document.getElementById('player1Selected').textContent = '-';
+            document.getElementById('player2Selected').textContent = '-';
+            
+            createCards();
+
+            timerInterval = setInterval(() => {
+                timer--;
+                document.getElementById('timeLeft').textContent = timer;
+                
+                if (timer === 0) {
+                    endRound();
+                }
+            }, 1000);
+        }
+
+        function endRound() {
+            clearInterval(timerInterval);
+
+            if (player1CurrentSelection === null || player2CurrentSelection === null) {
+                document.getElementById('roundResult').textContent = 'Seçim yapılmadı! Raund tekrarlanıyor.';
+                setTimeout(startRound, 2000);
+                return;
+            }
+
+            player1Cards = player1Cards.filter(card => card !== player1CurrentSelection);
+            player2Cards = player2Cards.filter(card => card !== player2CurrentSelection);
+            
+            player1LastCard = player1CurrentSelection;
+            player2LastCard = player2CurrentSelection;
+
+            if (player1CurrentSelection > player2CurrentSelection) {
+                player1Score++;
+                winSound.play();
+                document.getElementById('roundResult').textContent = 'Oyuncu 1 raundu kazandı!';
+                document.getElementById('roundResult').style.color = '#90EE90';
+            } else if (player2CurrentSelection > player1CurrentSelection) {
+                player2Score++;
+                winSound.play();
+                document.getElementById('roundResult').textContent = 'Oyuncu 2 raundu kazandı!';
+                document.getElementById('roundResult').style.color = '#90EE90';
+            } else {
+                document.getElementById('roundResult').textContent = 'Berabere!';
+                document.getElementById('roundResult').style.color = '#FFA500';
+            }
+
+            document.getElementById('player1Score').textContent = player1Score;
+            document.getElementById('player2Score').textContent = player2Score;
+
+            currentRound++;
+
+            if (currentRound <= 7) {
+                setTimeout(startRound, 2000);
+            } else {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            let result = '';
+            if (player1Score > player2Score) {
+                result = 'Oyuncu 1 kazandı!';
+                winSound.play();
+            } else if (player2Score > player1Score) {
+                result = 'Oyuncu 2 kazandı!';
+                winSound.play();
+            } else {
+                result = 'Oyun berabere bitti!';
+                loseSound.play();
+            }
+            
+            document.getElementById('roundResult').textContent = `Oyun bitti! ${result}`;
+            document.getElementById('roundResult').style.color = '#90EE90';
+        }
+
+        // Oyunu başlat
+        startRound();
+    </script>
+</body>
+</html>
